@@ -7,6 +7,7 @@ const path = require('path');
 
 const { ensureDb, DATA_DIR } = require('./utils/db');
 const { autoBackup } = require('./utils/backup');
+const { adapter } = require('./utils/storage');
 const { runMigrations, APP_VERSION } = require('./migrations');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -37,9 +38,9 @@ const signLimiter = rateLimit({
 });
 
 async function start() {
-  ensureDb();
+  if (adapter === 'local') ensureDb();
   await runMigrations();
-  autoBackup();
+  if (adapter === 'local') autoBackup();
 
   const app = express();
   const PORT = process.env.PORT || 3001;

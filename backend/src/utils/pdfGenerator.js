@@ -3,6 +3,7 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const { readDb, findById, updateOne, DATA_DIR, assertInsideDataDir } = require('./db');
+const files = require('./files');
 
 function safeImagePath(relativePath) {
   if (!relativePath) return null;
@@ -59,15 +60,10 @@ async function generateContractPdf(contractId, tipo = 'final') {
   // Use editable clauses from settings, fallback to hardcoded
   const clausulas = (lang === 'en' ? settings.clausulas_en : settings.clausulas_pt) || [];
 
-  const pdfsDir = path.join(DATA_DIR, 'pdfs');
-  if (!fs.existsSync(pdfsDir)) fs.mkdirSync(pdfsDir, { recursive: true });
-
   const fname = `contrato_${contractId}_${tipo}.pdf`;
-  const outputPath = path.join(pdfsDir, fname);
 
   const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: true });
-  const stream = fs.createWriteStream(outputPath);
-  doc.pipe(stream);
+  const chunks = [];
 
   const W = 595;
 
@@ -214,14 +210,15 @@ async function generateContractPdf(contractId, tipo = 'final') {
     doc.font('Helvetica').fontSize(8).fillColor('#78716C').text('Representante do estabelecimento', 310, lineY + 4);
   }
 
-  doc.end();
-
-  await new Promise((resolve, reject) => {
-    stream.on('finish', resolve);
-    stream.on('error', reject);
+  const pdfBuffer = await new Promise((resolve, reject) => {
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    doc.end();
   });
 
   const relativePath = `pdfs/${fname}`;
+  await files.saveFile(pdfBuffer, relativePath);
   const field = tipo === 'rascunho' ? 'pdf_rascunho_path' : 'pdf_final_path';
   await updateOne('contracts', contractId, { [field]: relativePath });
 
