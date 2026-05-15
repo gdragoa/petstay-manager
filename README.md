@@ -69,11 +69,39 @@ On first run, migrations execute automatically and create `/backend/data/db.json
 
 ## Environment Variables
 
+Copy `.env.example` to `.env` and adjust as needed:
+
+```bash
+cp .env.example .env
+```
+
+### Backend (`.env` in project root)
+
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3001` | Backend port |
-| `FRONTEND_URL` | `http://localhost:5173` | CORS allowed origin |
+| `FRONTEND_URL` | `http://localhost:5173` | CORS allowed origin — set to your frontend URL |
 | `NODE_ENV` | `development` | Environment |
+
+### Frontend (same `.env` file, read by Vite at startup)
+
+| Variable | Default | Description |
+|---|---|---|
+| `BACKEND_URL` | `http://localhost:3001` | Where Vite proxies API calls — set to your backend URL |
+| `PORT` | `5173` | Frontend dev server port |
+
+**Running on a local network or custom host?** Set both variables so each side knows where the other is:
+
+```env
+# .env
+PORT=3001
+FRONTEND_URL=http://192.168.1.10:5173
+NODE_ENV=development
+
+BACKEND_URL=http://192.168.1.10:3001
+```
+
+Then access the app from any device on the network at `http://192.168.1.10:5173`.
 
 ---
 
