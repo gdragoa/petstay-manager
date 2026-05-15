@@ -3,33 +3,52 @@ const path = require('path');
 const multer = require('multer');
 const { DATA_DIR, assertInsideDataDir } = require('./db');
 
+// When BACKEND_PUBLIC_URL is set, stored paths are full URLs (split deployment).
+// Otherwise they are relative paths (same-origin or dev).
+function toRelative(storedPath) {
+  const base = process.env.BACKEND_PUBLIC_URL;
+  if (base && storedPath && storedPath.startsWith(base)) {
+    return storedPath.slice(base.length).replace(/^\//, '');
+  }
+  return storedPath ? storedPath.replace(/^\//, '') : storedPath;
+}
+
+function toPublic(relativePath) {
+  const base = process.env.BACKEND_PUBLIC_URL;
+  if (base) return `${base.replace(/\/$/, '')}/${relativePath}`;
+  return '/' + relativePath.replace(/\\/g, '/');
+}
+
 async function saveFile(buffer, relativePath) {
   const fullPath = path.join(DATA_DIR, relativePath);
   assertInsideDataDir(fullPath);
   await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.promises.writeFile(fullPath, buffer);
-  return relativePath;
+  return toPublic(relativePath);
 }
 
-async function readFile(relativePath) {
-  const fullPath = path.join(DATA_DIR, relativePath);
+async function readFile(storedPath) {
+  const rel = toRelative(storedPath);
+  const fullPath = path.join(DATA_DIR, rel);
   assertInsideDataDir(fullPath);
   return fs.promises.readFile(fullPath);
 }
 
-function getFileUrl(relativePath) {
-  return '/' + relativePath.replace(/\\/g, '/');
+function getFileUrl(storedPath) {
+  return storedPath; // already transformed at save time
 }
 
-async function deleteFile(relativePath) {
-  const fullPath = path.join(DATA_DIR, relativePath);
-  assertInsideDataDir(fullPath);
+async function deleteFile(storedPath) {
+  const rel = toRelative(storedPath);
+  const fullPath = path.join(DATA_DIR, rel);
+  try { assertInsideDataDir(fullPath); } catch { return; }
   if (fs.existsSync(fullPath)) await fs.promises.unlink(fullPath);
 }
 
-async function fileExists(relativePath) {
-  if (!relativePath) return false;
-  const fullPath = path.join(DATA_DIR, relativePath);
+async function fileExists(storedPath) {
+  if (!storedPath) return false;
+  const rel = toRelative(storedPath);
+  const fullPath = path.join(DATA_DIR, rel);
   try {
     assertInsideDataDir(fullPath);
     return fs.existsSync(fullPath);
@@ -38,9 +57,12 @@ async function fileExists(relativePath) {
   }
 }
 
-function serveFile(res, relativePath, downloadName) {
-  if (!relativePath) return res.status(404).json({ success: false, error: 'File not found', code: 'NOT_FOUND' });
-  const fullPath = path.join(DATA_DIR, relativePath);
+function serveFile(res, storedPath, downloadName) {
+  if (!storedPath) return res.status(404).json({ success: false, error: 'File not found', code: 'NOT_FOUND' });
+  // If storedPath is a full URL (BACKEND_PUBLIC_URL mode), redirect
+  if (storedPath.startsWith('http')) return res.redirect(302, storedPath);
+  const rel = toRelative(storedPath);
+  const fullPath = path.join(DATA_DIR, rel);
   try { assertInsideDataDir(fullPath); } catch (e) {
     return res.status(400).json({ success: false, error: 'Invalid path', code: 'INVALID_PATH' });
   }
