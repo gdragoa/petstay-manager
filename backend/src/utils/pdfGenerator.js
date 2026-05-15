@@ -1,19 +1,11 @@
 const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
-const fs = require('fs');
-const path = require('path');
-const { readDb, findById, updateOne, DATA_DIR, assertInsideDataDir } = require('./db');
+const { readDb, findById, updateOne } = require('./db');
 const files = require('./files');
 
-function safeImagePath(relativePath) {
-  if (!relativePath) return null;
-  const full = path.join(DATA_DIR, relativePath);
-  try {
-    assertInsideDataDir(full);
-    return fs.existsSync(full) ? full : null;
-  } catch {
-    return null;
-  }
+async function getImageBuffer(storedPath) {
+  if (!storedPath) return null;
+  try { return await files.readFile(storedPath); } catch { return null; }
 }
 
 function trunc(str, max) {
@@ -35,7 +27,6 @@ function fmtBRL(val) {
   return `R$ ${Number(val || 0).toFixed(2).replace('.', ',')}`;
 }
 
-// Draw a small colored rectangle as section marker (replaces the problematic ▌ unicode char)
 function sectionTitle(doc, text, x, y, W) {
   doc.save()
     .rect(x, y + 1, 3, 10).fill('#F97316')
@@ -45,19 +36,18 @@ function sectionTitle(doc, text, x, y, W) {
 }
 
 async function generateContractPdf(contractId, tipo = 'final') {
-  const db = readDb();
-  const contract = findById('contracts', contractId);
+  const db = await readDb();
+  const contract = await findById('contracts', contractId);
   if (!contract) throw new Error(`Contract ${contractId} not found`);
 
-  const booking = findById('bookings', contract.booking_id);
+  const booking = await findById('bookings', contract.booking_id);
   if (!booking) throw new Error(`Booking ${contract.booking_id} not found`);
 
-  const animal = findById('animals', booking.animal_id);
-  const tutor = findById('tutors', booking.tutor_id);
+  const animal = await findById('animals', booking.animal_id);
+  const tutor = await findById('tutors', booking.tutor_id);
   const settings = db.settings;
   const lang = settings.idioma_padrao || 'pt';
 
-  // Use editable clauses from settings, fallback to hardcoded
   const clausulas = (lang === 'en' ? settings.clausulas_en : settings.clausulas_pt) || [];
 
   const fname = `contrato_${contractId}_${tipo}.pdf`;
@@ -68,9 +58,9 @@ async function generateContractPdf(contractId, tipo = 'final') {
   const W = 595;
 
   // ── HEADER ────────────────────────────────────────────────────────
-  const logoFull = safeImagePath(settings.logo_path);
-  if (logoFull) {
-    try { doc.image(logoFull, 40, 30, { width: 60, height: 60 }); } catch (_) {}
+  const logoBuf = await getImageBuffer(settings.logo_path);
+  if (logoBuf) {
+    try { doc.image(logoBuf, 40, 30, { width: 60, height: 60 }); } catch (_) {}
   }
 
   doc.font('Helvetica-Bold').fontSize(14).fillColor('#1C1917')
@@ -149,9 +139,9 @@ async function generateContractPdf(contractId, tipo = 'final') {
 
     // Tutor signature (left)
     doc.font('Helvetica-Bold').fontSize(8).fillColor('#78716C').text('Responsavel pelo animal:', 40, tutorSigY);
-    const tutorSigFull = safeImagePath(contract.assinatura_path);
-    if (tutorSigFull) {
-      try { doc.image(tutorSigFull, 40, tutorSigY + 12, { width: 200, height: 60 }); } catch (_) {}
+    const tutorSigBuf = await getImageBuffer(contract.assinatura_path);
+    if (tutorSigBuf) {
+      try { doc.image(tutorSigBuf, 40, tutorSigY + 12, { width: 200, height: 60 }); } catch (_) {}
     } else {
       doc.moveTo(40, tutorSigY + 72).lineTo(240, tutorSigY + 72).strokeColor('#CBD5E1').stroke();
     }
@@ -159,11 +149,11 @@ async function generateContractPdf(contractId, tipo = 'final') {
       .text(contract.nome_digitado || '', 40, tutorSigY + 78)
       .text(contract.data_assinatura ? fmtDateTime(contract.data_assinatura) : '', 40, tutorSigY + 90);
 
-    // Hotel signature (right) — comes from settings (configured once, not per-contract)
+    // Hotel signature (right)
     doc.font('Helvetica-Bold').fontSize(8).fillColor('#78716C').text('Representante do estabelecimento:', hotelSigX, tutorSigY);
-    const hotelSigFull = safeImagePath(settings.assinatura_hotel_path);
-    if (hotelSigFull) {
-      try { doc.image(hotelSigFull, hotelSigX, tutorSigY + 12, { width: 200, height: 60 }); } catch (_) {}
+    const hotelSigBuf = await getImageBuffer(settings.assinatura_hotel_path);
+    if (hotelSigBuf) {
+      try { doc.image(hotelSigBuf, hotelSigX, tutorSigY + 12, { width: 200, height: 60 }); } catch (_) {}
     } else {
       doc.moveTo(hotelSigX, tutorSigY + 72).lineTo(hotelSigX + 200, tutorSigY + 72).strokeColor('#CBD5E1').stroke();
     }
@@ -201,7 +191,6 @@ async function generateContractPdf(contractId, tipo = 'final') {
       .text('PENDENTE DE ASSINATURA', 60, 360, { width: 600 });
     doc.restore();
 
-    // Signature lines for printing
     sectionTitle(doc, 'ASSINATURAS', 40, sigSectionY, W);
     const lineY = sigSectionY + 40;
     doc.moveTo(40, lineY).lineTo(240, lineY).strokeColor('#CBD5E1').stroke();

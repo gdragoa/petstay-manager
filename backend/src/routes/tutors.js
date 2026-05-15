@@ -3,20 +3,24 @@ const router = express.Router();
 const { getCollection, findById, insertOne, updateOne, deleteOne, findWhere } = require('../utils/db');
 const { requireFields } = require('../middleware/validate');
 
-router.get('/', (req, res) => {
-  let tutors = getCollection('tutors');
-  if (req.query.q) {
-    const q = req.query.q.toLowerCase();
-    tutors = tutors.filter(t => t.nome?.toLowerCase().includes(q) || t.telefone?.includes(q));
-  }
-  res.json({ success: true, data: tutors, total: tutors.length });
+router.get('/', async (req, res, next) => {
+  try {
+    let tutors = await getCollection('tutors');
+    if (req.query.q) {
+      const q = req.query.q.toLowerCase();
+      tutors = tutors.filter(t => t.nome?.toLowerCase().includes(q) || t.telefone?.includes(q));
+    }
+    res.json({ success: true, data: tutors, total: tutors.length });
+  } catch (err) { next(err); }
 });
 
-router.get('/:id', (req, res) => {
-  const tutor = findById('tutors', req.params.id);
-  if (!tutor) return res.status(404).json({ success: false, error: 'Tutor not found', code: 'NOT_FOUND' });
-  const animals = findWhere('animals', { tutor_id: tutor.id });
-  res.json({ success: true, data: { ...tutor, animals } });
+router.get('/:id', async (req, res, next) => {
+  try {
+    const tutor = await findById('tutors', req.params.id);
+    if (!tutor) return res.status(404).json({ success: false, error: 'Tutor not found', code: 'NOT_FOUND' });
+    const animals = await findWhere('animals', { tutor_id: tutor.id });
+    res.json({ success: true, data: { ...tutor, animals } });
+  } catch (err) { next(err); }
 });
 
 router.post('/', requireFields(['nome', 'telefone']), async (req, res, next) => {
@@ -42,14 +46,10 @@ router.put('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    const activeBookings = findWhere('bookings', { tutor_id: req.params.id })
+    const activeBookings = (await findWhere('bookings', { tutor_id: req.params.id }))
       .filter(b => !['cancelado', 'check-out'].includes(b.status_presenca));
     if (activeBookings.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: 'Tutor has active bookings',
-        code: 'HAS_ACTIVE_BOOKINGS',
-      });
+      return res.status(409).json({ success: false, error: 'Tutor has active bookings', code: 'HAS_ACTIVE_BOOKINGS' });
     }
     const deleted = await deleteOne('tutors', req.params.id);
     if (!deleted) return res.status(404).json({ success: false, error: 'Tutor not found', code: 'NOT_FOUND' });

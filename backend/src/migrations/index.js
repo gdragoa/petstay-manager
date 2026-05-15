@@ -1,5 +1,6 @@
 const { readDb, writeDb } = require('../utils/db');
 const { backupDb } = require('../utils/backup');
+const { adapter } = require('../utils/storage');
 
 const APP_VERSION = '1.0.1';
 
@@ -14,6 +15,7 @@ function isVersionGreater(a, b) {
 }
 
 async function runMigrations() {
+  if (adapter !== 'local') return; // schema managed by ensureDb() in each adapter
   const db = readDb();
   const dbVersion = db.version || '0.0.0';
 

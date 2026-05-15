@@ -12,50 +12,55 @@ function calcTotal(dataEntrada, dataSaida, valorDiaria, servicos = []) {
   return { dias, total: dias * valorDiaria + extras };
 }
 
-router.get('/', (req, res) => {
-  const db = readDb();
-  let bookings = db.bookings || [];
-  if (req.query.status) bookings = bookings.filter(b => b.status_presenca === req.query.status);
-  if (req.query.data) bookings = bookings.filter(b => b.data_entrada === req.query.data || b.data_saida === req.query.data);
-  if (req.query.q) {
-    const q = req.query.q.toLowerCase();
-    bookings = bookings.filter(b => {
-      const animal = db.animals.find(a => a.id === b.animal_id);
-      const tutor = db.tutors.find(t => t.id === b.tutor_id);
-      return animal?.nome?.toLowerCase().includes(q) || tutor?.nome?.toLowerCase().includes(q);
-    });
-  }
-  // Always populate animal and tutor for display
-  const populated = bookings.map(b => ({
-    ...b,
-    animal: db.animals.find(a => a.id === b.animal_id) || null,
-    tutor: db.tutors.find(t => t.id === b.tutor_id) || null,
-  }));
-  res.json({ success: true, data: populated, total: populated.length });
+router.get('/', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    let bookings = db.bookings || [];
+    if (req.query.status) bookings = bookings.filter(b => b.status_presenca === req.query.status);
+    if (req.query.data) bookings = bookings.filter(b => b.data_entrada === req.query.data || b.data_saida === req.query.data);
+    if (req.query.q) {
+      const q = req.query.q.toLowerCase();
+      bookings = bookings.filter(b => {
+        const animal = db.animals.find(a => a.id === b.animal_id);
+        const tutor = db.tutors.find(t => t.id === b.tutor_id);
+        return animal?.nome?.toLowerCase().includes(q) || tutor?.nome?.toLowerCase().includes(q);
+      });
+    }
+    const populated = bookings.map(b => ({
+      ...b,
+      animal: db.animals.find(a => a.id === b.animal_id) || null,
+      tutor: db.tutors.find(t => t.id === b.tutor_id) || null,
+    }));
+    res.json({ success: true, data: populated, total: populated.length });
+  } catch (err) { next(err); }
 });
 
-router.get('/calendar', (req, res) => {
-  const mes = req.query.mes; // YYYY-MM
-  const bookings = getCollection('bookings').filter(b =>
-    b.data_entrada?.startsWith(mes) || b.data_saida?.startsWith(mes)
-  );
-  const blocked = getCollection('blocked_dates').filter(d => d.data?.startsWith(mes));
-  res.json({ success: true, data: { bookings, blocked } });
+router.get('/calendar', async (req, res, next) => {
+  try {
+    const mes = req.query.mes;
+    const bookings = (await getCollection('bookings')).filter(b =>
+      b.data_entrada?.startsWith(mes) || b.data_saida?.startsWith(mes)
+    );
+    const blocked = (await getCollection('blocked_dates')).filter(d => d.data?.startsWith(mes));
+    res.json({ success: true, data: { bookings, blocked } });
+  } catch (err) { next(err); }
 });
 
-router.get('/:id', (req, res) => {
-  const db = readDb();
-  const booking = findById('bookings', req.params.id);
-  if (!booking) return res.status(404).json({ success: false, error: 'Booking not found', code: 'NOT_FOUND' });
-  const animal = findById('animals', booking.animal_id);
-  const tutor = findById('tutors', booking.tutor_id);
-  const contract = db.contracts.find(c => c.booking_id === booking.id) || null;
-  res.json({ success: true, data: { ...booking, animal, tutor, contract } });
+router.get('/:id', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const booking = await findById('bookings', req.params.id);
+    if (!booking) return res.status(404).json({ success: false, error: 'Booking not found', code: 'NOT_FOUND' });
+    const animal = await findById('animals', booking.animal_id);
+    const tutor = await findById('tutors', booking.tutor_id);
+    const contract = db.contracts.find(c => c.booking_id === booking.id) || null;
+    res.json({ success: true, data: { ...booking, animal, tutor, contract } });
+  } catch (err) { next(err); }
 });
 
 router.post('/', requireFields(['animal_id', 'tutor_id', 'data_entrada', 'data_saida']), async (req, res, next) => {
   try {
-    const diaria = req.body.valor_diaria || getSetting('diaria_base') || 80;
+    const diaria = req.body.valor_diaria || (await getSetting('diaria_base')) || 80;
     const servicos = req.body.servicos_adicionais || [];
     const { total } = calcTotal(req.body.data_entrada, req.body.data_saida, diaria, servicos);
 
@@ -72,7 +77,7 @@ router.post('/', requireFields(['animal_id', 'tutor_id', 'data_entrada', 'data_s
       observacoes: req.body.observacoes || '',
     });
 
-    const validadeHoras = getSetting('contrato_validade_horas');
+    const validadeHoras = await getSetting('contrato_validade_horas');
     const dataExpiracao = validadeHoras
       ? new Date(Date.now() + validadeHoras * 3_600_000).toISOString()
       : null;
@@ -95,7 +100,6 @@ router.post('/', requireFields(['animal_id', 'tutor_id', 'data_entrada', 'data_s
       pdf_final_path: null,
     });
 
-    // Generate draft PDF async (don't block response)
     const { generateContractPdf } = require('../utils/pdfGenerator');
     generateContractPdf(contract.id, 'rascunho').catch(err =>
       console.error('Draft PDF error:', err.message)

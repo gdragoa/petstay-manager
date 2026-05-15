@@ -3,9 +3,11 @@ const router = express.Router();
 const { getCollection, insertOne, deleteOne } = require('../utils/db');
 const { requireFields } = require('../middleware/validate');
 
-router.get('/blocked', (_req, res) => {
-  const dates = getCollection('blocked_dates');
-  res.json({ success: true, data: dates, total: dates.length });
+router.get('/blocked', async (_req, res, next) => {
+  try {
+    const dates = await getCollection('blocked_dates');
+    res.json({ success: true, data: dates, total: dates.length });
+  } catch (err) { next(err); }
 });
 
 router.post('/blocked', requireFields(['data']), async (req, res, next) => {

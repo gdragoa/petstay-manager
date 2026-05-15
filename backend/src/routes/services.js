@@ -3,9 +3,11 @@ const router = express.Router();
 const { getCollection, insertOne, updateOne, deleteOne } = require('../utils/db');
 const { requireFields } = require('../middleware/validate');
 
-router.get('/', (_req, res) => {
-  const services = getCollection('services').filter(s => s.ativo !== false);
-  res.json({ success: true, data: services, total: services.length });
+router.get('/', async (_req, res, next) => {
+  try {
+    const services = (await getCollection('services')).filter(s => s.ativo !== false);
+    res.json({ success: true, data: services, total: services.length });
+  } catch (err) { next(err); }
 });
 
 router.post('/', requireFields(['nome', 'valor']), async (req, res, next) => {
