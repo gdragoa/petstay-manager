@@ -159,6 +159,52 @@ Schema migrations are versioned and incremental. Existing data is always preserv
 
 ---
 
+## Deploying to Production
+
+This project was designed to run locally. The backend stores all data in `/backend/data/db.json` and writes files to disk — it requires a server with a **persistent filesystem**.
+
+### Frontend on Vercel + Backend on Railway (recommended)
+
+**1. Deploy the backend on [Railway](https://railway.app) or [Render](https://render.com)**
+
+- Connect your repo and set the root directory to `backend`
+- Start command: `node src/index.js`
+- Add a persistent volume mounted at `/app/data` (Railway: Volume, Render: Disk)
+- Set environment variables:
+  ```env
+  PORT=3001
+  FRONTEND_URL=https://your-app.vercel.app
+  NODE_ENV=production
+  ```
+- Copy the deployed backend URL (e.g. `https://petstay-backend.railway.app`)
+
+**2. Deploy the frontend on [Vercel](https://vercel.com)**
+
+- Connect your repo, set the root directory to `frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Add environment variable in Vercel dashboard:
+  ```env
+  VITE_API_URL=https://petstay-backend.railway.app
+  ```
+- Deploy — Vercel will bake the backend URL into the bundle at build time
+
+**3. Update the signing link base URL**
+
+In the app settings page, set the **Base URL** to your Vercel frontend URL (e.g. `https://your-app.vercel.app`). This is used to generate QR Codes on signed contracts.
+
+### Environment variable summary
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `PORT` | backend `.env` | Backend port |
+| `FRONTEND_URL` | backend `.env` | CORS allowed origin |
+| `NODE_ENV` | backend `.env` | Environment |
+| `BACKEND_URL` | root `.env` | Vite dev proxy target (dev only) |
+| `VITE_API_URL` | Vercel dashboard / `.env` | Backend URL baked into production build |
+
+---
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
