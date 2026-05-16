@@ -77,6 +77,15 @@ router.post('/backup/restore/:fname', (req, res, next) => {
   }
 });
 
+router.delete('/logo', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    if (db.settings?.logo_path) await files.deleteFile(db.settings.logo_path);
+    const settings = await updateSettings({ logo_path: null });
+    res.json({ success: true, data: settings });
+  } catch (err) { next(err); }
+});
+
 router.post('/assinatura', async (req, res, next) => {
   try {
     const { assinatura_base64, nome_representante } = req.body;

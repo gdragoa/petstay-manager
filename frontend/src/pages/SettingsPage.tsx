@@ -139,9 +139,13 @@ export default function SettingsPage() {
         setClausulas(cl || []);
         setHotelRepName(sRes.data.nome_hotel_assinante || '');
         if (sRes.data.assinatura_hotel_path) {
-          setHotelSigPreview(`/${sRes.data.assinatura_hotel_path}?t=${Date.now()}`);
+          const sigPath = sRes.data.assinatura_hotel_path;
+          setHotelSigPreview(sigPath.startsWith('http') ? `${sigPath}?t=${Date.now()}` : `/${sigPath}?t=${Date.now()}`);
         }
-        if (sRes.data.logo_path) setLogoPreview(`/uploads/logo/${sRes.data.logo_path.split('/').pop()}`);
+        if (sRes.data.logo_path) {
+          const lp = sRes.data.logo_path;
+          setLogoPreview(lp.startsWith('http') ? lp : `/uploads/logo/${lp.split('/').pop()}`);
+        }
       })
       .finally(() => setLoading(false));
   }
@@ -229,7 +233,7 @@ export default function SettingsPage() {
           <div>
             <p className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>{t('settings.logo')}</p>
             {logoPreview
-              ? <div className="flex items-center gap-3"><img src={logoPreview} alt="Logo" className="h-14 w-14 rounded-xl object-contain border" style={{ borderColor: 'var(--border)' }} /><Button size="sm" variant="ghost" onClick={() => { setLogoPreview(''); }}>Remover</Button></div>
+              ? <div className="flex items-center gap-3"><img src={logoPreview} alt="Logo" className="h-14 w-14 rounded-xl object-contain border" style={{ borderColor: 'var(--border)' }} /><Button size="sm" variant="ghost" onClick={async () => { await api.delete('/settings/logo'); setLogoPreview(''); load(); }}>Remover</Button></div>
               : <FileUpload accept="image/png,image/jpeg,image/webp" maxMB={2} label={uploadingLogo ? 'Enviando...' : 'Alterar logo'} onFile={uploadLogo} />
             }
           </div>
