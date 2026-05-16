@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../lib/api';
+import api, { apiBase } from '../lib/api';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useToast } from '../contexts/ToastContext';
 import Button from '../components/ui/Button';
@@ -183,11 +183,11 @@ export default function BookingDetailPage() {
               </div>
             )}
             <div className="flex flex-wrap gap-2">
-              <a href={`/api/contracts/${contract.id}/pdf/rascunho`} target="_blank" rel="noreferrer">
+              <a href={`${apiBase}/contracts/${contract.id}/pdf/rascunho`} target="_blank" rel="noreferrer">
                 <Button size="sm" variant="ghost">📄 PDF Rascunho</Button>
               </a>
               {contractSigned && (
-                <a href={`/api/contracts/${contract.id}/pdf/final`} target="_blank" rel="noreferrer">
+                <a href={`${apiBase}/contracts/${contract.id}/pdf/final`} target="_blank" rel="noreferrer">
                   <Button size="sm" variant="secondary">📄 PDF Final</Button>
                 </a>
               )}
