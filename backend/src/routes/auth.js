@@ -26,8 +26,8 @@ router.get('/status', async (req, res, next) => {
   try {
     const senhaHash = await getSetting('senha_hash');
     const hasPassword = !!senhaHash;
-    const setupConfigured = !!process.env.SETUP_TOKEN;
-    res.json({ success: true, data: { hasPassword, setupConfigured } });
+    const setupRequired = !!process.env.SETUP_TOKEN;
+    res.json({ success: true, data: { hasPassword, setupConfigured: setupRequired } });
   } catch (err) { next(err); }
 });
 
@@ -43,14 +43,8 @@ router.post('/login', loginLimiter, async (req, res, next) => {
 
     if (isFirstLogin) {
       const envToken = process.env.SETUP_TOKEN;
-      if (!envToken) {
-        return res.status(503).json({
-          success: false,
-          error: 'SETUP_TOKEN não configurado. Adicione a variável de ambiente SETUP_TOKEN antes do primeiro login.',
-          code: 'SETUP_TOKEN_NOT_CONFIGURED',
-        });
-      }
-      if (!setup_token || setup_token !== envToken) {
+      // If SETUP_TOKEN is configured, require it. If not set, allow open first login.
+      if (envToken && setup_token !== envToken) {
         return res.status(401).json({
           success: false,
           error: 'Token de configuração inválido',
