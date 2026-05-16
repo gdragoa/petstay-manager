@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const { getSetting, updateSettings } = require('../utils/db');
 
 const SALT_ROUNDS = 12;
@@ -12,9 +13,27 @@ function secret() {
   return s;
 }
 
-router.post('/login', async (req, res, next) => {
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many login attempts', code: 'RATE_LIMITED' },
+});
+
+// Public: check if system has a password set (tells frontend which form to show)
+router.get('/status', async (req, res, next) => {
   try {
-    const { senha } = req.body;
+    const senhaHash = await getSetting('senha_hash');
+    const hasPassword = !!senhaHash;
+    const setupConfigured = !!process.env.SETUP_TOKEN;
+    res.json({ success: true, data: { hasPassword, setupConfigured } });
+  } catch (err) { next(err); }
+});
+
+router.post('/login', loginLimiter, async (req, res, next) => {
+  try {
+    const { senha, setup_token } = req.body;
     if (!senha || typeof senha !== 'string') {
       return res.status(400).json({ success: false, error: 'Senha obrigatória', code: 'PASSWORD_REQUIRED' });
     }
@@ -23,6 +42,24 @@ router.post('/login', async (req, res, next) => {
     const isFirstLogin = !senhaHash;
 
     if (isFirstLogin) {
+      const envToken = process.env.SETUP_TOKEN;
+      if (!envToken) {
+        return res.status(503).json({
+          success: false,
+          error: 'SETUP_TOKEN não configurado. Adicione a variável de ambiente SETUP_TOKEN antes do primeiro login.',
+          code: 'SETUP_TOKEN_NOT_CONFIGURED',
+        });
+      }
+      if (!setup_token || setup_token !== envToken) {
+        return res.status(401).json({
+          success: false,
+          error: 'Token de configuração inválido',
+          code: 'INVALID_SETUP_TOKEN',
+        });
+      }
+      if (senha.length < 8) {
+        return res.status(400).json({ success: false, error: 'Senha precisa ter ao menos 8 caracteres', code: 'PASSWORD_TOO_SHORT' });
+      }
       const hash = await bcrypt.hash(senha, SALT_ROUNDS);
       await updateSettings({ senha_hash: hash });
     } else {

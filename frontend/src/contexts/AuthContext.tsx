@@ -10,7 +10,7 @@ interface AuthContextType {
   token: string | null;
   expiresAt: Date | null;
   isAuthenticated: boolean;
-  login: (senha: string) => Promise<{ firstLogin: boolean }>;
+  login: (senha: string, setup_token?: string) => Promise<{ firstLogin: boolean }>;
   logout: () => void;
 }
 
@@ -40,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => api.interceptors.request.eject(id);
   }, [state.token]);
 
-  async function login(senha: string) {
-    const res: any = await api.post('/auth/login', { senha });
+  async function login(senha: string, setup_token?: string) {
+    const res: any = await api.post('/auth/login', { senha, ...(setup_token ? { setup_token } : {}) });
     const { token, expiresAt, firstLogin } = res.data;
     localStorage.setItem(KEY, JSON.stringify({ token, expiresAt }));
     setState({ token, expiresAt: new Date(expiresAt) });
