@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AppShell from './components/layout/AppShell';
 import Spinner from './components/ui/Spinner';
 import api from './lib/api';
 
+import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
 import DashboardPage from './pages/DashboardPage';
 import BookingsPage from './pages/BookingsPage';
@@ -22,15 +24,19 @@ import SettingsPage from './pages/SettingsPage';
 import SigningPage from './pages/SigningPage';
 import VerifyPage from './pages/VerifyPage';
 
-function RequireOnboarding({ children }: { children: React.ReactNode }) {
-  const [status, setStatus] = useState<'loading' | 'ok' | 'setup'>('loading');
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const location = useLocation();
+  const [status, setStatus] = useState<'loading' | 'ok' | 'setup'>('loading');
 
   useEffect(() => {
+    if (!isAuthenticated) { setStatus('ok'); return; }
     api.get('/settings').then((res: any) => {
       setStatus(res.data.onboarding_completo ? 'ok' : 'setup');
     }).catch(() => setStatus('ok'));
-  }, []);
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
 
   if (status === 'loading') {
     return (
@@ -39,9 +45,7 @@ function RequireOnboarding({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (status === 'setup') {
-    return <Navigate to="/setup" state={{ from: location }} replace />;
-  }
+  if (status === 'setup') return <Navigate to="/setup" state={{ from: location }} replace />;
   return <>{children}</>;
 }
 
@@ -50,31 +54,34 @@ export default function App() {
     <ThemeProvider>
       <TranslationProvider>
         <ToastProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Public routes — no AppShell */}
-              <Route path="/setup" element={<OnboardingPage />} />
-              <Route path="/assinar" element={<SigningPage />} />
-              <Route path="/verificar" element={<VerifyPage />} />
+          <AuthProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/setup" element={<OnboardingPage />} />
+                <Route path="/assinar" element={<SigningPage />} />
+                <Route path="/verificar" element={<VerifyPage />} />
 
-              {/* Admin routes — with AppShell + onboarding guard */}
-              <Route element={<RequireOnboarding><AppShell /></RequireOnboarding>}>
-                <Route path="/" element={<DashboardPage />} />
-                <Route path="/bookings" element={<BookingsPage />} />
-                <Route path="/bookings/new" element={<BookingFormPage />} />
-                <Route path="/bookings/:id" element={<BookingDetailPage />} />
-                <Route path="/animals" element={<AnimalsPage />} />
-                <Route path="/animals/:id" element={<AnimalDetailPage />} />
-                <Route path="/tutors" element={<TutorsPage />} />
-                <Route path="/tutors/:id" element={<TutorDetailPage />} />
-                <Route path="/services" element={<ServicesPage />} />
-                <Route path="/calendar" element={<CalendarPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-              </Route>
+                {/* Admin routes */}
+                <Route element={<RequireAuth><AppShell /></RequireAuth>}>
+                  <Route path="/" element={<DashboardPage />} />
+                  <Route path="/bookings" element={<BookingsPage />} />
+                  <Route path="/bookings/new" element={<BookingFormPage />} />
+                  <Route path="/bookings/:id" element={<BookingDetailPage />} />
+                  <Route path="/animals" element={<AnimalsPage />} />
+                  <Route path="/animals/:id" element={<AnimalDetailPage />} />
+                  <Route path="/tutors" element={<TutorsPage />} />
+                  <Route path="/tutors/:id" element={<TutorDetailPage />} />
+                  <Route path="/services" element={<ServicesPage />} />
+                  <Route path="/calendar" element={<CalendarPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                </Route>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </BrowserRouter>
+          </AuthProvider>
         </ToastProvider>
       </TranslationProvider>
     </ThemeProvider>

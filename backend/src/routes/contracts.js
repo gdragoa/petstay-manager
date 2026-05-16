@@ -6,6 +6,7 @@ const { readDb, findById, updateOne } = require('../utils/db');
 const files = require('../utils/files');
 const { generateHash } = require('../utils/contractHash');
 const { generateContractPdf } = require('../utils/pdfGenerator');
+const requireAuth = require('../middleware/requireAuth');
 
 const MAX_SIG_BYTES = 3 * 1024 * 1024;
 
@@ -36,7 +37,7 @@ function parseSigBuffer(assinatura_base64) {
 }
 
 // Admin: get by ID
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireAuth, async (req, res, next) => {
   try {
     const contract = await findById('contracts', req.params.id);
     if (!contract) return res.status(404).json({ success: false, error: 'Contract not found', code: 'NOT_FOUND' });
@@ -111,7 +112,7 @@ router.post('/sign/:token', signBodyParser, async (req, res, next) => {
 });
 
 // Admin: resend (regenerate token)
-router.post('/:id/resend', async (req, res, next) => {
+router.post('/:id/resend', requireAuth, async (req, res, next) => {
   try {
     const contract = await findById('contracts', req.params.id);
     if (!contract) return res.status(404).json({ success: false, error: 'Contract not found', code: 'NOT_FOUND' });
@@ -133,7 +134,7 @@ router.post('/:id/resend', async (req, res, next) => {
 });
 
 // Admin: hotel owner signs the contract
-router.post('/:id/sign-hotel', async (req, res, next) => {
+router.post('/:id/sign-hotel', requireAuth, async (req, res, next) => {
   try {
     const contract = await findById('contracts', req.params.id);
     if (!contract) return res.status(404).json({ success: false, error: 'Contract not found', code: 'NOT_FOUND' });
@@ -162,7 +163,7 @@ router.post('/:id/sign-hotel', async (req, res, next) => {
 });
 
 // Admin: download draft PDF
-router.get('/:id/pdf/rascunho', async (req, res, next) => {
+router.get('/:id/pdf/rascunho', requireAuth, async (req, res, next) => {
   try {
     const contract = await findById('contracts', req.params.id);
     if (!contract) return res.status(404).json({ success: false, error: 'Contract not found', code: 'NOT_FOUND' });
@@ -175,7 +176,7 @@ router.get('/:id/pdf/rascunho', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Admin + client: download final PDF
+// Client (public) + admin: download final PDF after signing
 router.get('/:id/pdf/final', async (req, res, next) => {
   try {
     const contract = await findById('contracts', req.params.id);

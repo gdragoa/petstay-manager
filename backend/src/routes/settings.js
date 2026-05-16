@@ -2,7 +2,8 @@ const express = require('express');
 const path = require('path');
 const router = express.Router();
 
-const { readDb, updateSettings } = require('../utils/db');
+const bcrypt = require('bcryptjs');
+const { readDb, updateSettings, getSetting } = require('../utils/db');
 const files = require('../utils/files');
 const { backupDb, listBackups, restoreBackup } = require('../utils/backup');
 const { logoUploader } = require('../middleware/upload');
@@ -103,6 +104,24 @@ router.post('/assinatura', async (req, res, next) => {
     const assinatura_hotel_path = await files.saveFile(buf, 'uploads/signatures/hotel_sig.png');
     const settings = await updateSettings({ assinatura_hotel_path, nome_hotel_assinante: nome_representante.trim() });
     res.json({ success: true, data: { assinatura_hotel_path, nome_hotel_assinante: settings.nome_hotel_assinante } });
+  } catch (err) { next(err); }
+});
+
+router.post('/password', async (req, res, next) => {
+  try {
+    const { senha_atual, senha_nova } = req.body;
+    if (!senha_nova || senha_nova.length < 6) {
+      return res.status(400).json({ success: false, error: 'Nova senha precisa ter ao menos 6 caracteres', code: 'PASSWORD_TOO_SHORT' });
+    }
+    const senhaHash = await getSetting('senha_hash');
+    if (senhaHash) {
+      if (!senha_atual) return res.status(400).json({ success: false, error: 'Senha atual obrigatória', code: 'CURRENT_PASSWORD_REQUIRED' });
+      const ok = await bcrypt.compare(senha_atual, senhaHash);
+      if (!ok) return res.status(401).json({ success: false, error: 'Senha atual incorreta', code: 'INVALID_PASSWORD' });
+    }
+    const hash = await bcrypt.hash(senha_nova, 12);
+    await updateSettings({ senha_hash: hash });
+    res.json({ success: true, data: { updated: true } });
   } catch (err) { next(err); }
 });
 

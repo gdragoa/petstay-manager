@@ -11,6 +11,8 @@ const { adapter } = require('./utils/storage');
 const { runMigrations, APP_VERSION } = require('./migrations');
 const errorHandler = require('./middleware/errorHandler');
 
+const requireAuth = require('./middleware/requireAuth');
+const authRouter = require('./routes/auth');
 const settingsRouter = require('./routes/settings');
 const tutorsRouter = require('./routes/tutors');
 const animalsRouter = require('./routes/animals');
@@ -92,17 +94,24 @@ async function createApp() {
     res.json({ success: true, data: { status: 'ok', version: APP_VERSION, adapter } });
   });
 
+  // Auth — public
+  app.use('/api/auth', authRouter);
+
+  // Public contract endpoints (client-facing, token-gated at route level)
   app.use('/api/contracts/token', publicLimiter);
   app.use('/api/contracts/verify', publicLimiter);
   app.use('/api/contracts/sign', signLimiter);
 
-  app.use('/api/settings', settingsRouter);
-  app.use('/api/tutors', tutorsRouter);
-  app.use('/api/animals', animalsRouter);
-  app.use('/api/bookings', bookingsRouter);
+  // Protected admin routes
+  app.use('/api/settings', requireAuth, settingsRouter);
+  app.use('/api/tutors', requireAuth, tutorsRouter);
+  app.use('/api/animals', requireAuth, animalsRouter);
+  app.use('/api/bookings', requireAuth, bookingsRouter);
+  app.use('/api/services', requireAuth, servicesRouter);
+  app.use('/api/dates', requireAuth, datesRouter);
+
+  // Contracts — mixed (some routes are public, handled inside the router)
   app.use('/api/contracts', contractsRouter);
-  app.use('/api/services', servicesRouter);
-  app.use('/api/dates', datesRouter);
 
   app.use(errorHandler);
 

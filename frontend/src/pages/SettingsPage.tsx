@@ -14,6 +14,40 @@ import PhoneInput from '../components/ui/PhoneInput';
 import SignatureCanvas, { SignatureCanvasHandle } from '../components/signing/SignatureCanvas';
 import type { Settings } from '../types';
 
+function PasswordSection() {
+  const { toast } = useToast();
+  const [atual, setAtual] = useState('');
+  const [nova, setNova] = useState('');
+  const [confirma, setConfirma] = useState('');
+  const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (nova.length < 6) { setErr('Mínimo 6 caracteres'); return; }
+    if (nova !== confirma) { setErr('Senhas não coincidem'); return; }
+    setSaving(true); setErr('');
+    try {
+      await api.post('/settings/password', { senha_atual: atual || undefined, senha_nova: nova });
+      toast('Senha alterada!');
+      setAtual(''); setNova(''); setConfirma('');
+    } catch (e: any) { setErr(e?.error || 'Erro ao alterar senha'); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Card>
+      <p className="font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Senha de acesso</p>
+      <div className="flex flex-col gap-3 max-w-sm">
+        <Input label="Senha atual" type="password" value={atual} onChange={e => setAtual(e.target.value)} placeholder="Deixe vazio se ainda não definiu" />
+        <Input label="Nova senha" type="password" value={nova} onChange={e => setNova(e.target.value)} />
+        <Input label="Confirmar nova senha" type="password" value={confirma} onChange={e => setConfirma(e.target.value)} />
+        {err && <p className="text-sm text-red-500">{err}</p>}
+        <Button onClick={save} loading={saving} variant="secondary">Alterar senha</Button>
+      </div>
+    </Card>
+  );
+}
+
 const PRESET_COLORS = ['#F97316', '#10B981', '#6366F1', '#EC4899', '#EF4444', '#F59E0B'];
 
 interface Backup { fname: string; size: number; mtime: string }
@@ -366,6 +400,9 @@ export default function SettingsPage() {
           </Button>
         </div>
       </Card>
+
+      {/* Password */}
+      <PasswordSection />
 
       {/* Backup */}
       <Card>

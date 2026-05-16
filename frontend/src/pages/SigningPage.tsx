@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import api from '../lib/api';
+import api, { resolveFileUrl, apiBase } from '../lib/api';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import Button from '../components/ui/Button';
@@ -101,7 +101,7 @@ export default function SigningPage() {
         nome_digitado: name.trim(),
         aceite_termos: true,
       });
-      setPdfPath(contractId ? `/api/contracts/${contractId}/pdf/final` : '');
+      setPdfPath(contractId ? `${apiBase}/contracts/${contractId}/pdf/final` : '');
       setState('success');
     } catch (err: any) {
       if (err?.code === 'ALREADY_SIGNED') setState('signed');
@@ -176,7 +176,7 @@ export default function SigningPage() {
         {/* Hotel header */}
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
           {settings?.logo_path
-            ? <img src={`/${settings.logo_path}`} alt="Logo" className="h-10 w-10 rounded-lg object-contain" />
+            ? <img src={resolveFileUrl(settings.logo_path) ?? ''} alt="Logo" className="h-10 w-10 rounded-lg object-contain" />
             : <span className="text-3xl">🐾</span>
           }
           <div>
